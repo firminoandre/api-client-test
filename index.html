@@ -45,7 +45,11 @@
                         </q-card-section>
                         <q-card-actions>
                             <q-btn no-caps flat label="Cancelar" @click="closeModal()"></q-btn>
-                            <q-btn no-caps color="primary" unelevated :disabled="!newContact.nome || !newContact.telefone || telefoneError" label="Salvar" @click="isEditing ? updateContact() : createContact()"></q-btn>
+                            <q-btn no-caps color="primary" unelevated :disabled="isInvalidForm" label="Salvar" @click="isEditing ? updateContact() : createContact()">
+                                <q-tooltip v-if="isSameForm">
+                                    Altere algum dado para poder salvar
+                                  </q-tooltip>
+                            </q-btn>
                         </q-card-actions>
                     </q-card>
                 </q-dialog>
@@ -81,8 +85,6 @@
                           </template>
                     </q-table>
                 </div>
-                {{rowClass}}
-
             </q-page-container>
         </q-layout>
     </div>
@@ -95,12 +97,14 @@
                 const BASE_API_URL = 'http://localhost:3000/contatos'
 
                 const newContact = Vue.ref({ nome: '', telefone: '' });
+                const contactCopy = Vue.ref({ nome: '', telefone: '' })
                 const contacts = Vue.ref([]);
 
                 const userIdToDelete = Vue.ref(null);
                 const isEditing = Vue.ref(false);
                 const showModal = Vue.ref(false);
                 const confirmDelete = Vue.ref(false);
+                const isSameForm = Vue.ref(false)
 
                 const nameError = Vue.ref(false)
                 const nameErrorMessage = Vue.ref('')
@@ -126,6 +130,14 @@
                     }
                 ];
 
+                const isInvalidForm = Vue.computed(() => {
+                    return !newContact.value.nome || 
+                    !newContact.value.telefone || 
+                    isSameForm.value ||
+                    nameError.value ||
+                    telefoneError.value
+                })
+
                 const isValidName = (name) => {
                     const nameWords = name.trim().split(/\s+/);
                     
@@ -142,9 +154,11 @@
                 const openModal = (user = null) => {
                     if (user) {
                         newContact.value = { ...user };
+                        contactCopy.value = { ...user }
                         isEditing.value = true;
                     } else {
                         newContact.value = { nome: '', telefone: '' };
+                        contactCopy.value = { nome: '', telefone: '' };
                         isEditing.value = false;
                     }
                     showModal.value = true;
@@ -211,14 +225,15 @@
                 fetchContacts();
 
                 Vue.watch(() => newContact.value.nome, () => {
+                    const { nome } = newContact.value
                     const regexTovalidNome = /^[A-Za-z][A-Za-z0-9\s]*$/;
 
-                    if (!regexTovalidNome.test(newContact.value.nome)) {
+                    if (!regexTovalidNome.test(nome)) {
                         handleInvalidInput(nameError, nameErrorMessage, 'Nao deve conter números no inicio e nem caracteres especiais')
                         return
                     }
 
-                    if (!isValidName(newContact.value.nome)) {
+                    if (!isValidName(nome)) {
                         handleInvalidInput(nameError, nameErrorMessage, 'Deve conter um nome composto e com no minimo 3 letras')
                         return
                     }
@@ -228,9 +243,9 @@
                 })
 
                 Vue.watch(() => newContact.value.telefone, () => {
-                    
+                    const { telefone } = newContact.value
 
-                    if (newContact.value.telefone.length !== 17 || !newContact.value.telefone) {
+                    if (telefone.length !== 17 || !telefone) {
                         handleInvalidInput(telefoneError, telefoneErrorMessage, 'Deve conter um telefone válido')
                         return
                     }
@@ -238,6 +253,15 @@
                     telefoneError.value = false
                     telefoneErrorMessage.value = ''
                 })
+
+                Vue.watch(() => newContact.value, () => {
+                    if (newContact.value.nome === contactCopy.value.nome && 
+                            newContact.value.telefone === contactCopy.value.telefone) {
+                        isSameForm.value = true
+                        return
+                    }
+                    isSameForm.value = false
+                }, { deep: true })
 
                 return { 
                     showModal,
@@ -256,7 +280,9 @@
                     telefoneError,
                     nameErrorMessage,
                     telefoneErrorMessage,
-                    tableFilter
+                    tableFilter,
+                    isSameForm,
+                    isInvalidForm
                 };
             }
         });
