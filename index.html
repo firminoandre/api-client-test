@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicação Vue.js 3 com Quasar</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/quasar@2.17.0/dist/quasar.prod.css" rel="stylesheet">
+    <style>
+        .highlight-row {
+            background-color: blue !important;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="q-app">
+        <q-layout class="bg-grey-1">
+            <q-header elevated class="text-white" style="background: #24292e" height-hint="61.59">
+              <q-toolbar class="q-py-sm q-px-md">
+        
+                <div class="q-pl-sm q-gutter-sm row items-center no-wrap">
+                    <q-btn no-caps label="Adicionar contatos" icon="add" flat @click="showModal = true"></q-btn>
+                </div>
+              </q-toolbar>
+            </q-header>
+        
+            <q-page-container>
+                <q-dialog v-model="showModal">
+                    <q-card style="width: 500px;" class="q-pa-lg">
+                        <q-card-section>
+                            <div class="text-h6">{{ isEditing ? 'Editar Contato' : 'Criar Contato' }}</div>
+                        </q-card-section>
+                        <q-card-section>
+                            <q-input v-model="newContact.nome" label="Nome" :error-message="nameErrorMessage" :error="nameError" required  outlined dense :rules="[val => !!val || 'Campo obrigatório']"></q-input>
+                            <q-input class="q-mt-lg" v-model="newContact.telefone" label="Telefone" 
+                                mask="(##) ##### - ####"
+                                required 
+                                outlined 
+                                dense
+                                :error-message="telefoneErrorMessage"
+                                :error="telefoneError"
+                                :rules="[val => !!val || 'Campo obrigatório']">
+                            </q-input>
+                        </q-card-section>
+                        <q-card-actions>
+                            <q-btn no-caps flat label="Cancelar" @click="closeModal()"></q-btn>
+                            <q-btn no-caps color="primary" unelevated :disabled="!newContact.nome || !newContact.telefone || telefoneError" label="Salvar" @click="isEditing ? updateContact() : createContact()"></q-btn>
+                        </q-card-actions>
+                    </q-card>
+                </q-dialog>
+
+                <q-dialog v-model="confirmDelete">
+                    <q-card style="width: 500px;"  class="q-pa-lg">
+                        <q-card-section>
+                            <div class="text-h6">Confirmar Exclusão</div>
+                            <p>Você tem certeza que deseja excluir este contato?</p>
+                        </q-card-section>
+                        <q-card-actions>
+                            <q-btn no-caps flat label="Cancelar" @click="confirmDelete = false"></q-btn>
+                            <q-btn no-caps label="Excluir" @click="deleteContact"></q-btn>
+                        </q-card-actions>
+                    </q-card>
+                </q-dialog>
+                <div class="q-pa-lg">
+                    <p class="text-h6">Contatos</p>
+
+                    <q-table bordered flat no-data-label="Sem dados" :rows="contacts" :filter="tableFilter" :columns="tableColumns">
+                        <template v-slot:body-cell-actions="{ row }">
+                            <q-td align="center">
+                                <q-btn flat no-caps label="Editar" @click="openModal(row)"></q-btn>
+                                <q-btn flat no-caps color="negative" label="Deletar" @click="confirmDeleteContact(row.id)"></q-btn>
+                            </q-td>
+                        </template>
+                        <template v-slot:top-right>
+                            <q-input style="width: 230px;" outlined dense debounce="300" v-model="tableFilter" placeholder="Busque por qualquer termo">
+                              <template v-slot:append>
+                                <q-icon name="search" />
+                              </template>
+                            </q-input>
+                          </template>
+                    </q-table>
+                </div>
+                {{rowClass}}
+
+            </q-page-container>
+        </q-layout>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quasar@2.17.0/dist/quasar.umd.prod.js"></script>
+    <script>
+        const app = Vue.createApp({
+            setup() {
+                const BASE_API_URL = 'http://localhost:3000/contatos'
+
+                const newContact = Vue.ref({ nome: '', telefone: '' });
+                const contacts = Vue.ref([]);
+
+                const userIdToDelete = Vue.ref(null);
+                const isEditing = Vue.ref(false);
+                const showModal = Vue.ref(false);
+                const confirmDelete = Vue.ref(false);
+
+                const nameError = Vue.ref(false)
+                const nameErrorMessage = Vue.ref('')
+                const telefoneError = Vue.ref(false)
+                const telefoneErrorMessage = Vue.ref('')
+                const tableFilter = Vue.ref('')
+
+                const tableColumns = [
+                    { name: 'nome', label: 'Nome', align: 'left', field: row => row.nome },
+                    { 
+                        name: 'telefone',
+                        label: 'Telefone',
+                        align: 'left',
+                        field: row => row.telefone,
+                        classes: row => row.telefone.startsWith('(11)') ? 'highlight-row' : '' 
+                    },
+                    {
+                        name: 'actions',
+                        label: 'Ações',
+                        align: 'center',
+                        field: row => row,
+                        sortable: false,
+                    }
+                ];
+
+                const isValidName = (name) => {
+                    const nameWords = name.trim().split(/\s+/);
+                    
+                    if (nameWords.length < 2) return false;
+                
+                    return nameWords.every(word => word.length >= 3);
+                }
+
+                const fetchContacts = async () => {
+                    const response = await fetch(BASE_API_URL);
+                    contacts.value = await response.json();
+                };
+
+                const openModal = (user = null) => {
+                    if (user) {
+                        newContact.value = { ...user };
+                        isEditing.value = true;
+                    } else {
+                        newContact.value = { nome: '', telefone: '' };
+                        isEditing.value = false;
+                    }
+                    showModal.value = true;
+                };
+
+                const closeModal = () => {
+                    newContact.value = { nome: '', telefone: '' };
+                    showModal.value = false;
+                    isEditing.value = false;
+                };
+
+                const createContact = async () => {
+                    if (nameError.value || telefoneError.value) return
+
+                    await fetch(BASE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newContact.value)
+                    });
+
+                    closeModal();
+                    fetchContacts();
+                };
+
+                const updateContact = async () => {
+                    if (nameError.value || telefoneError.value) return
+
+                    const contactData = {
+                        nome: newContact.value.nome,
+                        telefone: newContact.value.telefone
+                    }
+
+                    await fetch(`${BASE_API_URL}/${newContact.value.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(contactData)
+                    });
+
+                    closeModal();
+                    fetchContacts();
+                };
+
+                const confirmDeleteContact = (id) => {
+                    userIdToDelete.value = id;
+                    confirmDelete.value = true;
+                };
+
+                const deleteContact = async () => {
+                    if (!userIdToDelete.value) return
+
+                    await fetch(`${BASE_API_URL}/${userIdToDelete.value}`, {
+                        method: 'DELETE'
+                    });
+
+                    confirmDelete.value = false;
+                    fetchContacts(); 
+                };
+
+                const handleInvalidInput = (errorInputRef, errorInputMessageRef, errorMessage) => {
+                    errorInputRef.value = true
+                    errorInputMessageRef.value = errorMessage
+                }
+
+                fetchContacts();
+
+                Vue.watch(() => newContact.value.nome, () => {
+                    const regexTovalidNome = /^[A-Za-z][A-Za-z0-9\s]*$/;
+
+                    if (!regexTovalidNome.test(newContact.value.nome)) {
+                        handleInvalidInput(nameError, nameErrorMessage, 'Nao deve conter números no inicio e nem caracteres especiais')
+                        return
+                    }
+
+                    if (!isValidName(newContact.value.nome)) {
+                        handleInvalidInput(nameError, nameErrorMessage, 'Deve conter um nome composto e com no minimo 3 letras')
+                        return
+                    }
+
+                    nameError.value = false
+                    nameErrorMessage.value = ''
+                })
+
+                Vue.watch(() => newContact.value.telefone, () => {
+                    
+
+                    if (newContact.value.telefone.length !== 17 || !newContact.value.telefone) {
+                        handleInvalidInput(telefoneError, telefoneErrorMessage, 'Deve conter um telefone válido')
+                        return
+                    }
+
+                    telefoneError.value = false
+                    telefoneErrorMessage.value = ''
+                })
+
+                return { 
+                    showModal,
+                    confirmDelete,
+                    newContact, 
+                    contacts,
+                    tableColumns,
+                    openModal, 
+                    closeModal,
+                    createContact,
+                    updateContact,
+                    confirmDeleteContact,
+                    deleteContact,
+                    isEditing,
+                    nameError,
+                    telefoneError,
+                    nameErrorMessage,
+                    telefoneErrorMessage,
+                    tableFilter
+                };
+            }
+        });
+
+        app.use(Quasar);
+        app.mount('#q-app');
+
+        window.editUser = (user) => app.config.globalProperties.openModal(user);
+        window.confirmDeleteContact = (id) => app.config.globalProperties.confirmDeleteContact(id);
+    </script>
+</body>
+</html>

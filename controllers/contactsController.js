@@ -1,27 +1,27 @@
 const db = require('../config/database');
 const { isValidName } = require('../helpers/validationHelpers');
 
-exports.getAllClients = (req, res) => {
-  db.query('SELECT * FROM Clients', (err, results) => {
+exports.getAllContacts = (req, res) => {
+  db.query('SELECT * FROM Contacts', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(results);
+    res.status(200).json(results);
   });
 };
 
-exports.createClient = (req, res) => {
+exports.createContact = (req, res) => {
   const { nome, telefone } = req.body;
 
   if (!isValidName(nome)) {
     return res.status(400).json({ message: 'The name must contain at least two words, each with at least three letters.' });
   }
   
-  db.query('INSERT INTO Clients (nome, telefone) VALUES (?, ?)', [nome, telefone], (err, result) => {
+  db.query('INSERT INTO Contacts (nome, telefone) VALUES (?, ?)', [nome, telefone], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.status(201).json({ message: 'Success in create a client', client: { id: result.insertId, nome, telefone } });
+    res.status(201).json({ message: 'Success in create a contact', client: { id: result.insertId, nome, telefone } });
   });
 };
 
-exports.updateClient = (req, res) => {
+exports.updateContact = (req, res) => {
     const { id } = req.params;
     const paramsToUpdate = req.body;
     const allowedFields = ['nome', 'telefone'];
@@ -41,19 +41,19 @@ exports.updateClient = (req, res) => {
     const fields = Object.keys(paramsToUpdate).map(key => `${key} = ?`).join(', ');
     const values = Object.values(paramsToUpdate);
   
-    db.query(`UPDATE Clients SET ${fields} WHERE id = ?`, [...values, id], (err) => {
+    db.query(`UPDATE Contacts SET ${fields} WHERE id = ?`, [...values, id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const updatedClient = { id: id, ...paramsToUpdate };
-    res.status(200).json({ message: 'Success in update a client', client: updatedClient });
+    res.status(200).json({ message: 'Success in update a contact', client: updatedClient });
     });
   };
 
-exports.deleteClient = (req, res) => {
+exports.deleteContact = (req, res) => {
     const { id } = req.params;
 
-    db.query('DELETE FROM Clients WHERE id = ?', [id], (err) => {
+    db.query('DELETE FROM Contacts WHERE id = ?', [id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.status(204).json({ message: 'Success in delete user' });
+        res.status(204).json({ message: 'Success in delete contact' });
     });
 };

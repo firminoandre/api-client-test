@@ -4,7 +4,7 @@ connection.connect((err) => {
     if (err) throw err;
   
     const sql = `
-      CREATE TABLE IF NOT EXISTS Clients (
+      CREATE TABLE IF NOT EXISTS Contacts (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nome VARCHAR(255),
         telefone VARCHAR(255),
